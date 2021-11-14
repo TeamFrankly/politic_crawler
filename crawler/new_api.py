@@ -11,17 +11,16 @@ import re
 import numpy as np
 import pandas as pd
 import sys
-import sys
 #print(sys.version)
-import jpype
+
 from konlpy.tag import Okt
 from gensim import corpora, models
 import time
 
 def __main__():
     input = sys.argv
-    # keyword = "윤석열"
-    keyword = input[1]
+    keyword = "윤석열"
+    # keyword = input[1]
     print("실행1")
     politic_crawler(keyword).main()
     print("실행1")
@@ -64,8 +63,8 @@ class politic_crawler:
         if(rescode==200):
             response_body = response.read()
             jsonobject = json.loads(response_body.decode('utf-8'))
-            print("아이템 : ",jsonobject['items'])
-            pprint.pprint(jsonobject)
+           # print("아이템 : ",jsonobject['items'])
+         #   pprint.pprint(jsonobject)
         else:
             print("Error Code:" + rescode)
         return jsonobject
@@ -77,14 +76,14 @@ class politic_crawler:
             data= pd.DataFrame([i["title"] + i["description"]],columns=['papers'])
             dfPapers = pd.concat([dfPapers,data], ignore_index=True)
         print("출력")
-        print(dfPapers)
+        #print(dfPapers)
         documents = dfPapers
         documents['papers'] = documents['papers'].map(lambda x: re.sub(r'[^\w\s]',' ',x))
         documents['papers'] = documents['papers'].map(lambda x: x.lower())
 
         list_of_documents = list(documents['papers'])
         list_of_documents[0]
-        print("dlrj",list_of_documents)
+       # print("dlrj",list_of_documents)
         t = Okt()
         pos = lambda d: ['/'.join(p) for p in t.pos(d, stem=True, norm=True)] #t.pos(d, stem=True, norm=True) or t.nouns(d)
         texts_ko = [pos(doc) for doc in list_of_documents]
@@ -97,19 +96,19 @@ class politic_crawler:
         #print("afsdfasdfasdf",tf_ko)
         tfidf_model_ko = models.TfidfModel(tf_ko)
         tfidf_ko = tfidf_model_ko[tf_ko]
-        print("tf", tfidf_ko)
+        #print("tf", tfidf_ko)
         #print(corpora.MmCorpus.serialize('ko.mm', tfidf_ko)) # save corpus to file for future use
 
         # print first 10 elements of first document's tf-idf vector
-        print("tesa",tfidf_ko.corpus[0][:10])
+       ## print("tesa",tfidf_ko.corpus[0][:10])
         # print top 10 elements of first document's tf-idf vector
-        print(sorted(tfidf_ko.corpus[0], key=lambda x: x[1], reverse=True)[:10])
+       # print(sorted(tfidf_ko.corpus[0], key=lambda x: x[1], reverse=True)[:10])
         # print token of most frequent element
         print(dictionary_ko.get(51),dictionary_ko.get(3),dictionary_ko.get(29),dictionary_ko.get(46
         ))
         lda_model = models.ldamodel.LdaModel(corpus=tf_ko, id2word=dictionary_ko,num_topics=10)
         keywords = lda_model.print_topics(-1,5)
-        print(keywords)
+        #print(keywords)
 
         keywords = []
         for topic in lda_model.print_topics(-1,10):
