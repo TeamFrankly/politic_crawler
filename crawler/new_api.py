@@ -35,10 +35,20 @@ class politic_crawler:
     
     def main(self):
         print("실행1")
-        jsonobject = self.news_api(self.keyword)  
-        result_keywords = self.lda_modeling(jsonobject)
+        try:
+            jsonobject = self.news_api(self.keyword)  
+        except Exception as e:
+            print(e)
+            print("NEWS_API_ERROR")            
+        try:    
+            result_keywords = self.lda_modeling(jsonobject)
+        except Exception as e:
+            print(e)
+            result_keywords = "LDA_MODELING_ERROR"
+            print("LDA_MODELING_ERROR")
+        time_required = time.time() - self.start    
         print("결과", result_keywords)
-        print("실행 시간 :", time.time() - self.start)
+        print("실행 시간 :", time_required)
         print("입력 키워드 : ", self.keyword)
 
     def news_api(self, keyword):
