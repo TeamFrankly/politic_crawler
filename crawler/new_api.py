@@ -1,6 +1,3 @@
-# client_key : agXsz69GSRrBcAIVoLhV
-# client_Secret : y6vqdnVADz
-
 import os
 import sys
 import urllib.request
@@ -11,30 +8,47 @@ import re
 import numpy as np
 import pandas as pd
 import sys
-#print(sys.version)
-
 from konlpy.tag import Okt
 from gensim import corpora, models
 import time
+import pymysql
+
 
 def __main__():
+    """
+    politic_crwaler를 실행함.
+    """
     input = sys.argv[1]
     keyword = "홍준표"
     print(input)
-    # keyword = input[1]
-    #print("실행1")
     politic_crawler(input).main()
-    #print("실행1")
 
 class politic_crawler:
+    
     def __init__(self, keyword):
+        """
+        method : __init__
+        explain : 생성자. db를 연결하고, 각 자료구조를 생성함.
+        """
         self.start = time.time()
+        try:
+            self.db = pymysql.connect(host='127.0.0.1',port=3306, user='root', passwd="whdgns1002@"
+                                    ,db='test', charset='utf8')
+            
+            self.cursor = self.db.cursor()
+        except Exception as e:
+            print("db is not connection")
         self.keyword = keyword
         self.client_id = "agXsz69GSRrBcAIVoLhV"
         self.client_secret = "y6vqdnVADz"
-    
+        self.url_list = []
+
     def main(self):
-        #print("실행1")
+        """
+        method : main
+        explain : news_api 함수와 LDA_MODELING을 실행한다. 주요 기능의 실행을 담당한다.
+        
+        """
         try:
             jsonobject = self.news_api(self.keyword)  
         except Exception as e:
@@ -47,15 +61,55 @@ class politic_crawler:
             result_keywords = "LDA_MODELING_ERROR"
             print("LDA_MODELING_ERROR")
         time_required = time.time() - self.start    
-        print("결과", result_keywords)
-        print("실행 시간 :", time_required)
-        print("입력 키워드 : ", self.keyword)
+        # print("결과", result_keywords)
+        # print("실행 시간 :", time_required)
+        # print("url_list : " self.url_list)
+        # print("입력 키워드 : ", self.keyword)
+        
+        result_keywords = result_keywords[0] + ", "+result_keywords[1]+", "+ result_keywords[2]+ ", "+result_keywords[3]+ ", "+result_keywords[4]
+        url_list = self.url_list[0] + ", "+self.url_list[1]+ ", "+self.url_list[2]+ ", "+self.url_list[3]+ ", "+self.url_list[4]
+        
+        try:
+            self.mysql_connection(url_list, result_keywords, self.keyword)
+        except Exception as e:
+            print("mysql error")
+            print(e)
+    
+
+    def mysql_connection(self, url_list, result_keywords, search_keyword):
+        '''
+        method : mysql_connection
+        explain : mysql을 사용하기 위한 함수.
+        '''
+        create_sql = """
+                CREATE TABLE SRESULT(
+                      result_keywords VARCHAR(500) NOT NULL,
+                      input_keyword VARCHAR(500) NOT NULL, 
+                      NEWS_URL VARCHAR(500) NOT NULL
+                )
+                
+                """
+        input_sql = """
+          INSERT INTO SRESULT(result_keywords, input_keyword, NEWS_URL) VALUES (%s,%s,%s)
+        """
+        
+        try:
+            self.cursor.execute(input_sql,(result_keywords, self.keyword, url_list))
+        except:
+            self.cursor.execute(create_sql)
+            self.cursor.execute(input_sql,(result_keywords, self.keyword, url_list))
+
+        self.db.commit()
+        self.db.close()
+
 
     def news_api(self, keyword):
-        
-        encText = urllib.parse.quote(keyword)
+        '''
+        api url : https://developers.naver.com/docs/serviceapi/search/news/news.md#%EB%89%B4%EC%8A%A4 
+        method : news_api를 직접적으로 사용하는 함수. description과 title를 json형태로 반환함.
+        '''
+        encText = urllib.parse.quote(self.keyword)
         url = "https://openapi.naver.com/v1/search/news?query=" + encText+"&display=20&start=1&sort=sim"# json 결과
-        # url = "https://openapi.naver.com/v1/search/blog.xml?query=" + encText # xml 결과
         request = urllib.request.Request(url)
         request.add_header("X-Naver-Client-Id",self.client_id)
         request.add_header("X-Naver-Client-Secret",self.client_secret)
@@ -64,47 +118,48 @@ class politic_crawler:
         if(rescode==200):
             response_body = response.read()
             jsonobject = json.loads(response_body.decode('utf-8'))
-           # print("아이템 : ",jsonobject['items'])
-         #   pprint.pprint(jsonobject)
+
+      
         else:
             print("Error Code:" + rescode)
         return jsonobject
     
     def lda_modeling(self, jsonobject):
-        
+        '''
+        method : lda_modeling
+        explain : lda modeling
+        lda 모델링
+        1. 어간추출 - konlpy
+        2. bow - gensim
+        3. tf-idf - gensim
+        4. lda - gensim
+        '''
         dfPapers = pd.DataFrame(columns=['papers'])
         for i in jsonobject['items']:
             data= pd.DataFrame([i["title"] + i["description"]],columns=['papers'])
             dfPapers = pd.concat([dfPapers,data], ignore_index=True)
-        print("출력")
-        #print(dfPapers)
+        
+            if len(self.url_list) < 5:
+                self.url_list.append(i['link'])
+
         documents = dfPapers
         documents['papers'] = documents['papers'].map(lambda x: re.sub(r'[^\w\s]',' ',x))
         documents['papers'] = documents['papers'].map(lambda x: x.lower())
-
         list_of_documents = list(documents['papers'])
-        list_of_documents[0]
-       # print("dlrj",list_of_documents)
         t = Okt()
-        pos = lambda d: ['/'.join(p) for p in t.pos(d, stem=True, norm=True)] #t.pos(d, stem=True, norm=True) or t.nouns(d)
+        pos = lambda d: ['/'.join(p) for p in t.pos(d, stem=True, norm=True)]
         texts_ko = [pos(doc) for doc in list_of_documents]
-        # print("dafsdfa",texts_ko[0])
-
+        ################## 데이터 전처리 ######################3
         dictionary_ko = corpora.Dictionary(texts_ko)
-        # dictionary_ko.save('ko.dict')
-        #from gensim import models
+
         tf_ko = [dictionary_ko.doc2bow(text) for text in texts_ko]
-        #print("afsdfasdfasdf",tf_ko)
+        ################## BOW 활용 ################333
         tfidf_model_ko = models.TfidfModel(tf_ko)
         tfidf_ko = tfidf_model_ko[tf_ko]
-        # print("tfidf_ko", type(tfidf_ko))
-        # for i in tfidf_ko:
-        #     print(i)
-        
-        
+        ################## TF-IDF를 활용한 가중치 부여 ####################333
         lda_model = models.ldamodel.LdaModel(corpus=tf_ko, id2word=dictionary_ko,num_topics=10)
+        ################### LDA MODELING 수행 ######################3
         keywords = lda_model.print_topics(-1,5)
-        #print(keywords)
 
         keywords = []
         for topic in lda_model.print_topics(-1,10):
@@ -121,102 +176,12 @@ class politic_crawler:
                             if len(word[0])==1:
                                 break
                             count += 1
-                            
                             keywords.append(word[0])
                             break
                 if count >= 1:
                     break
-        
+        ##################### 모델링 후 필요없는 단어 제거 #########################
         return keywords  
-
-    
-        
+      
 __main__()
 
-
-# start = time.time()
-# client_id = "agXsz69GSRrBcAIVoLhV"
-# client_secret = "y6vqdnVADz"
-# keyword = "윤석열"
-# encText = urllib.parse.quote(keyword)
-# url = "https://openapi.naver.com/v1/search/news?query=" + encText+"&display=20&start=1&sort=sim"# json 결과
-# # url = "https://openapi.naver.com/v1/search/blog.xml?query=" + encText # xml 결과
-# request = urllib.request.Request(url)
-# request.add_header("X-Naver-Client-Id",client_id)
-# request.add_header("X-Naver-Client-Secret",client_secret)
-# response = urllib.request.urlopen(request)
-# rescode = response.getcode()
-# if(rescode==200):
-#     response_body = response.read()
-#     jsonobject = json.loads(response_body.decode('utf-8'))
-#     print("아이템 : ",jsonobject['items'])
-#     pprint.pprint(jsonobject)
-# else:
-#     print("Error Code:" + rescode)
-# # print(jsonobject)
-# title = []
-# description = []
-# new_data = []
-# dfPapers = pd.DataFrame(columns=['papers'])
-
-# for i in jsonobject['items']:
-#     data= pd.DataFrame([i["title"] + i["description"]],columns=['papers'])
-#     dfPapers = pd.concat([dfPapers,data], ignore_index=True)
-# print("출력")
-# print(dfPapers)
-# documents = dfPapers
-# documents['papers'] = documents['papers'].map(lambda x: re.sub(r'[^\w\s]',' ',x))
-# documents['papers'] = documents['papers'].map(lambda x: x.lower())
-
-# list_of_documents = list(documents['papers'])
-# list_of_documents[0]
-# print("dlrj",list_of_documents)
-# t = Okt()
-# pos = lambda d: ['/'.join(p) for p in t.pos(d, stem=True, norm=True)] #t.pos(d, stem=True, norm=True) or t.nouns(d)
-# texts_ko = [pos(doc) for doc in list_of_documents]
-# # print("dafsdfa",texts_ko[0])
-
-# dictionary_ko = corpora.Dictionary(texts_ko)
-# # dictionary_ko.save('ko.dict')
-# #from gensim import models
-# tf_ko = [dictionary_ko.doc2bow(text) for text in texts_ko]
-# #print("afsdfasdfasdf",tf_ko)
-# tfidf_model_ko = models.TfidfModel(tf_ko)
-# tfidf_ko = tfidf_model_ko[tf_ko]
-# print("tf", tfidf_ko)
-# #print(corpora.MmCorpus.serialize('ko.mm', tfidf_ko)) # save corpus to file for future use
-
-# # print first 10 elements of first document's tf-idf vector
-# print("tesa",tfidf_ko.corpus[0][:10])
-# # print top 10 elements of first document's tf-idf vector
-# print(sorted(tfidf_ko.corpus[0], key=lambda x: x[1], reverse=True)[:10])
-# # print token of most frequent element
-# print(dictionary_ko.get(51),dictionary_ko.get(3),dictionary_ko.get(29),dictionary_ko.get(46
-# ))
-# lda_model = models.ldamodel.LdaModel(corpus=tf_ko, id2word=dictionary_ko,num_topics=10)
-# keywords = lda_model.print_topics(-1,5)
-# print(keywords)
-
-# keywords = []
-# for topic in lda_model.print_topics(-1,10):
-#     topic_list = topic[1].split('+')
-#     for i in range(len(topic_list)):
-#         count = 0
-#         words = topic_list[i].split('"')
-#         for j in range(len(words)):
-#             if "*" in words[j] or words[j] == "" or words[j] == " ":
-#                 continue
-#             elif words[j] not in keywords:
-#                 word = words[j].split('/')
-#                 if word[0] not in keywords and word[1] == "Noun":
-#                     if len(word[0])==1:
-#                         break
-#                     count += 1
-                    
-#                     keywords.append(word[0])
-#                     break
-#         if count >= 1:
-#             break
-# print("실행 시간 :", time.time() - start)
-# print("입력 키워드 : ", keyword)
-# print(keywords)
