@@ -18,12 +18,13 @@ from gensim import corpora, models
 import time
 
 def __main__():
-    input = sys.argv
-    keyword = "윤석열"
+    input = sys.argv[1]
+    keyword = "홍준표"
+    print(input)
     # keyword = input[1]
-    print("실행1")
-    politic_crawler(keyword).main()
-    print("실행1")
+    #print("실행1")
+    politic_crawler(input).main()
+    #print("실행1")
 
 class politic_crawler:
     def __init__(self, keyword):
@@ -33,7 +34,7 @@ class politic_crawler:
         self.client_secret = "y6vqdnVADz"
     
     def main(self):
-        print("실행1")
+        #print("실행1")
         try:
             jsonobject = self.news_api(self.keyword)  
         except Exception as e:
@@ -96,16 +97,11 @@ class politic_crawler:
         #print("afsdfasdfasdf",tf_ko)
         tfidf_model_ko = models.TfidfModel(tf_ko)
         tfidf_ko = tfidf_model_ko[tf_ko]
-        #print("tf", tfidf_ko)
-        #print(corpora.MmCorpus.serialize('ko.mm', tfidf_ko)) # save corpus to file for future use
-
-        # print first 10 elements of first document's tf-idf vector
-       ## print("tesa",tfidf_ko.corpus[0][:10])
-        # print top 10 elements of first document's tf-idf vector
-       # print(sorted(tfidf_ko.corpus[0], key=lambda x: x[1], reverse=True)[:10])
-        # print token of most frequent element
-        print(dictionary_ko.get(51),dictionary_ko.get(3),dictionary_ko.get(29),dictionary_ko.get(46
-        ))
+        # print("tfidf_ko", type(tfidf_ko))
+        # for i in tfidf_ko:
+        #     print(i)
+        
+        
         lda_model = models.ldamodel.LdaModel(corpus=tf_ko, id2word=dictionary_ko,num_topics=10)
         keywords = lda_model.print_topics(-1,5)
         #print(keywords)
