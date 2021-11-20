@@ -68,14 +68,31 @@ class politic_crawler:
         # print("입력 키워드 : ", self.keyword)
         result_url_list = ""
         result_keyword = ""
+        # print(self.url_list)
+        # print(result_keywords)
+        cnt = 0
         try:
-            result_keyword = result_keywords[0] + ", "+result_keywords[1]+", "+ result_keywords[2]+ ", "+result_keywords[3]+ ", "+result_keywords[4]
-            result_url_list = self.url_list[0] + ", "+self.url_list[1]+ ", "+self.url_list[2]+ ", "+self.url_list[3]+ ", "+self.url_list[4]
+            for i in range(len(result_keywords)-1):
+                if result_keywords[i] == result_keywords[len(result_keywords)-2]:
+                    result_keyword += result_keywords[i]
+                else:
+                    result_keyword += result_keywords[i] + ","
+                cnt += 1
         except Exception as e:
-            result_keyword = result_keywords[0] + ", "+result_keywords[1]+", "+ result_keywords[2]
-            result_url_list = self.url_list[0] + ", "+self.url_list[1]+ ", "+self.url_list[2]
+            print("키워드 담는 문제")
+        #print(cnt)
+        try:
+            for i in range(0,3):
+                if self.url_list[i] == self.url_list[2]:
+                    result_url_list += self.url_list[i]
+                else:
+                    result_url_list += self.url_list[i] + ","                 
+        except Exception as e:
+            print("url 담는 문제")
+        # except Exception as e:
+        #     print(e)
 
-        print(result_url_list, result_keyword, self.keyword)
+        #print(result_url_list, result_keyword, self.keyword)
         try:
             self.mysql_connection(result_url_list, result_keyword, self.keyword)
         except Exception as e:
@@ -90,24 +107,25 @@ class politic_crawler:
         '''
         create_sql = """
                 CREATE TABLE SRESULT(
-                      result_keywords VARCHAR(500) NOT NULL,
-                      input_keyword VARCHAR(500) NOT NULL, 
-                      NEWS_URL VARCHAR(500) NOT NULL
+                      result_keywords VARCHAR(1000) NOT NULL,
+                      input_keyword VARCHAR(1000) NOT NULL, 
+                      NEWS_URL VARCHAR(1000) NOT NULL
                 )
                 
                 """
         input_sql = """
           INSERT INTO SRESULT(result_keywords, input_keyword, NEWS_URL) VALUES (%s,%s,%s)
         """
-        
+        try:
+            self.cursor.execute(create_sql)
+        except Exception as e:
+            print("테이블이 있습니다.")
+
         try:
             self.cursor.execute(input_sql,(result_keywords, self.keyword, url_list))
-        except:
-            self.cursor.execute(create_sql)
-            self.cursor.execute(input_sql,(result_keywords, self.keyword, url_list))
+        except Exception as e:           
+            print("수집 안됨", e)
 
-        self.db.commit()
-        self.db.close()
 
 
     def news_api(self, keyword):
@@ -146,7 +164,7 @@ class politic_crawler:
             data= pd.DataFrame([i["title"] + i["description"]],columns=['papers'])
             dfPapers = pd.concat([dfPapers,data], ignore_index=True)
         
-            if len(self.url_list) < 5:
+            if len(self.url_list) < 15:
                 self.url_list.append(i['link'])
 
         documents = dfPapers
@@ -166,16 +184,16 @@ class politic_crawler:
         ################## TF-IDF를 활용한 가중치 부여 ####################333
         lda_model = models.ldamodel.LdaModel(corpus=tf_ko, id2word=dictionary_ko,num_topics=10)
         ################### LDA MODELING 수행 ######################3
-        keywords = lda_model.print_topics(-1,15)
+        keywords = lda_model.print_topics(-1,20)
 
         keywords = []
-        for topic in lda_model.print_topics(-1,15):
+        for topic in lda_model.print_topics(-1,20):
             topic_list = topic[1].split('+')
             for i in range(len(topic_list)):
                 count = 0
                 words = topic_list[i].split('"')
                 for j in range(len(words)):
-                    if "*" in words[j] or words[j] == "" or words[j] == " ":
+                    if "*" in words[j] or words[j] == "" or words[j] == " " :
                         continue
                     elif words[j] not in keywords:
                         word = words[j].split('/')
@@ -183,7 +201,10 @@ class politic_crawler:
                             if len(word[0])==1:
                                 break
                             count += 1
-                            keywords.append(word[0])
+                            if word[0] == "의원" or word[0] == "위원장" or word[0] == "위원회":
+                                continue
+                            else:
+                                keywords.append(word[0])
                             break
                 if count >= 1:
                     break
