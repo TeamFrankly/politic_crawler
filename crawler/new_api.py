@@ -18,10 +18,11 @@ def __main__():
     """
     politic_crwaler를 실행함.
     """
-    input = sys.argv[1]
-    keyword = "홍준표"
-    print(input)
-    politic_crawler(input).main()
+    f = open("crawler\list.txt", 'r',encoding='UTF8')
+    lines = f.readlines()
+    for line in lines:
+        input = line.replace("\n","")
+        politic_crawler(input).main()
 
 class politic_crawler:
     
@@ -65,12 +66,18 @@ class politic_crawler:
         # print("실행 시간 :", time_required)
         # print("url_list : " self.url_list)
         # print("입력 키워드 : ", self.keyword)
-        
-        result_keywords = result_keywords[0] + ", "+result_keywords[1]+", "+ result_keywords[2]+ ", "+result_keywords[3]+ ", "+result_keywords[4]
-        url_list = self.url_list[0] + ", "+self.url_list[1]+ ", "+self.url_list[2]+ ", "+self.url_list[3]+ ", "+self.url_list[4]
-        
+        result_url_list = ""
+        result_keyword = ""
         try:
-            self.mysql_connection(url_list, result_keywords, self.keyword)
+            result_keyword = result_keywords[0] + ", "+result_keywords[1]+", "+ result_keywords[2]+ ", "+result_keywords[3]+ ", "+result_keywords[4]
+            result_url_list = self.url_list[0] + ", "+self.url_list[1]+ ", "+self.url_list[2]+ ", "+self.url_list[3]+ ", "+self.url_list[4]
+        except Exception as e:
+            result_keyword = result_keywords[0] + ", "+result_keywords[1]+", "+ result_keywords[2]
+            result_url_list = self.url_list[0] + ", "+self.url_list[1]+ ", "+self.url_list[2]
+
+        print(result_url_list, result_keyword, self.keyword)
+        try:
+            self.mysql_connection(result_url_list, result_keyword, self.keyword)
         except Exception as e:
             print("mysql error")
             print(e)
@@ -109,7 +116,7 @@ class politic_crawler:
         method : news_api를 직접적으로 사용하는 함수. description과 title를 json형태로 반환함.
         '''
         encText = urllib.parse.quote(self.keyword)
-        url = "https://openapi.naver.com/v1/search/news?query=" + encText+"&display=20&start=1&sort=sim"# json 결과
+        url = "https://openapi.naver.com/v1/search/news?query=" + encText+"&display=100&start=1&sort=sim"# json 결과
         request = urllib.request.Request(url)
         request.add_header("X-Naver-Client-Id",self.client_id)
         request.add_header("X-Naver-Client-Secret",self.client_secret)
@@ -143,7 +150,7 @@ class politic_crawler:
                 self.url_list.append(i['link'])
 
         documents = dfPapers
-        documents['papers'] = documents['papers'].map(lambda x: re.sub(r'[^\w\s]',' ',x))
+        documents['papers'] = documents['papers'].map(lambda x: re.sub(r'[^\w\s]<>',' ',x))
         documents['papers'] = documents['papers'].map(lambda x: x.lower())
         list_of_documents = list(documents['papers'])
         t = Okt()
@@ -159,10 +166,10 @@ class politic_crawler:
         ################## TF-IDF를 활용한 가중치 부여 ####################333
         lda_model = models.ldamodel.LdaModel(corpus=tf_ko, id2word=dictionary_ko,num_topics=10)
         ################### LDA MODELING 수행 ######################3
-        keywords = lda_model.print_topics(-1,5)
+        keywords = lda_model.print_topics(-1,15)
 
         keywords = []
-        for topic in lda_model.print_topics(-1,10):
+        for topic in lda_model.print_topics(-1,15):
             topic_list = topic[1].split('+')
             for i in range(len(topic_list)):
                 count = 0
