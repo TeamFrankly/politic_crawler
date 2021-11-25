@@ -129,7 +129,7 @@ class politic_crawler:
 
 
 
-    def news_api(self, keyword):
+    def news_api(self, keywords):
         '''
         api url : https://developers.naver.com/docs/serviceapi/search/news/news.md#%EB%89%B4%EC%8A%A4 
         method : news_api를 직접적으로 사용하는 함수. description과 title를 json형태로 반환함.
@@ -142,8 +142,8 @@ class politic_crawler:
         encText = urllib.parse.quote(self.keyword)
         # 가져올 페이지 수
         for i in range(3):
-            add = str(100 * i + start)
-            url = "https://openapi.naver.com/v1/search/news?query=" + encText+"&display=100&start=" +add+"&sort=sim"# json 결과
+            add = str(50 * i + start)
+            url = "https://openapi.naver.com/v1/search/news?query=" + encText+"&display=50&start=" +add+"&sort=sim"# json 결과
             request = urllib.request.Request(url)
             request.add_header("X-Naver-Client-Id",self.client_id)
             request.add_header("X-Naver-Client-Secret",self.client_secret)
@@ -206,7 +206,7 @@ class politic_crawler:
         while(len(keywords) <= 4):
             print("키워드가 적어서 다시 수집합니다.")
             cnt += 1
-            if cnt == 10:
+            if cnt == 20:
                 break
             for topic in lda_model.print_topics(-1,100):
                 topic_list = topic[1].split('+')
