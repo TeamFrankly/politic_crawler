@@ -20,7 +20,7 @@ def __main__():
     """
     f = open("crawler\list.txt", 'r',encoding='UTF8')
     lines = f.readlines()
-    for line in lines[:5]:
+    for line in lines:
         input = line.replace("\n","")
         politic_crawler(input).main()
 
@@ -51,11 +51,8 @@ class politic_crawler:
         explain : news_api 함수와 LDA_MODELING을 실행한다. 주요 기능의 실행을 담당한다.
         
         """
-        try:
-            jsonobject = self.news_api(self.keyword)  
-        except Exception as e:
-            print(e)
-            print("NEWS_API_ERROR")            
+        jsonobject = self.news_api(self.keyword)  
+                   
         try:    
             result_keywords = self.lda_modeling(jsonobject)
         except Exception as e:
@@ -137,21 +134,35 @@ class politic_crawler:
         api url : https://developers.naver.com/docs/serviceapi/search/news/news.md#%EB%89%B4%EC%8A%A4 
         method : news_api를 직접적으로 사용하는 함수. description과 title를 json형태로 반환함.
         '''
+        start = 1
+        itemdict = {}
+        title = [] 
+        description = []
+        urldata = []
         encText = urllib.parse.quote(self.keyword)
-        url = "https://openapi.naver.com/v1/search/news?query=" + encText+"&display=100&start=1&sort=sim"# json 결과
-        request = urllib.request.Request(url)
-        request.add_header("X-Naver-Client-Id",self.client_id)
-        request.add_header("X-Naver-Client-Secret",self.client_secret)
-        response = urllib.request.urlopen(request)
-        rescode = response.getcode()
-        if(rescode==200):
-            response_body = response.read()
-            jsonobject = json.loads(response_body.decode('utf-8'))
-
-      
-        else:
-            print("Error Code:" + rescode)
-        return jsonobject
+        # 가져올 페이지 수
+        for i in range(3):
+            add = str(100 * i + start)
+            url = "https://openapi.naver.com/v1/search/news?query=" + encText+"&display=100&start=" +add+"&sort=sim"# json 결과
+            request = urllib.request.Request(url)
+            request.add_header("X-Naver-Client-Id",self.client_id)
+            request.add_header("X-Naver-Client-Secret",self.client_secret)
+            response = urllib.request.urlopen(request)
+            rescode = response.getcode()
+            if(rescode==200):
+                response_body = response.read()
+                jsonobject = json.loads(response_body.decode('utf-8'))
+                for i in jsonobject['items']:
+                    title.append(i['title'])
+                    description.append(i['description'])
+                    urldata.append(i['link'])
+            else:
+                print("Error Code:" + rescode)
+        itemdict['title'] = title
+        itemdict['description'] = description
+        itemdict['link'] = urldata
+       # print(itemdict)
+        return itemdict
     
     def lda_modeling(self, jsonobject):
         '''
@@ -164,12 +175,12 @@ class politic_crawler:
         4. lda - gensim
         '''
         dfPapers = pd.DataFrame(columns=['papers'])
-        for i in jsonobject['items']:
-            data= pd.DataFrame([i["title"] + i["description"]],columns=['papers'])
+        for num, i in enumerate(jsonobject['title']):
+            data= pd.DataFrame([i + jsonobject['description'][num]],columns=['papers'])
             dfPapers = pd.concat([dfPapers,data], ignore_index=True)
         
-            if len(self.url_list) < 15:
-                self.url_list.append(i['link'])
+            if len(self.url_list) < 5:
+                self.url_list.append(jsonobject['link'][num])
 
         documents = dfPapers
         documents['papers'] = documents['papers'].map(lambda x: re.sub(r'[^\w\s]<>',' ',x))
@@ -188,31 +199,39 @@ class politic_crawler:
         ################## TF-IDF를 활용한 가중치 부여 ####################333
         lda_model = models.ldamodel.LdaModel(corpus=tf_ko, id2word=dictionary_ko,num_topics=10)
         ################### LDA MODELING 수행 ######################3
-        keywords = lda_model.print_topics(-1,50)
+        keywords = lda_model.print_topics(-1,100)
 
         keywords = []
-        for topic in lda_model.print_topics(-1,50):
-            topic_list = topic[1].split('+')
-            for i in range(len(topic_list)):
-                count = 0
-                words = topic_list[i].split('"')
-                for j in range(len(words)):
-                    if "*" in words[j] or words[j] == "" or words[j] == " " :
-                        continue
-                    elif words[j] not in keywords:
-                        word = words[j].split('/')
-                       # print(word)
-                        if word[0] not in keywords and word[1] == "Noun":
-                            if len(word[0])==1:
+        cnt = 0
+        while(len(keywords) <= 4):
+            print("키워드가 적어서 다시 수집합니다.")
+            cnt += 1
+            if cnt == 10:
+                break
+            for topic in lda_model.print_topics(-1,100):
+                topic_list = topic[1].split('+')
+                for i in range(len(topic_list)):
+                    count = 0
+                    words = topic_list[i].split('"')
+                    for j in range(len(words)):
+                        if "*" in words[j] or words[j] == "" or words[j] == " " :
+                            continue
+                        elif words[j] not in keywords:
+                            word = words[j].split('/')
+                        # print(word)
+                        # print(word)
+                            if word[0] not in keywords and word[1] == "Noun":
+                                if len(word[0])==1:
+                                    break
+                                count += 1
+                                if word[0] == "의원" or word[0] == "위원장" or word[0] == "위원회":
+                                    continue
+                                else:
+                                    keywords.append(word[0])
                                 break
-                            count += 1
-                            if word[0] == "의원" or word[0] == "위원장" or word[0] == "위원회":
-                                continue
-                            else:
-                                keywords.append(word[0])
-                            break
-                if count >= 1:
-                    break
+                    if count >= 1:
+                        break
+                
         ##################### 모델링 후 필요없는 단어 제거 #########################
         return keywords  
       
