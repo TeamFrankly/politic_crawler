@@ -20,7 +20,7 @@ def __main__():
     """
     f = open("crawler\list.txt", 'r',encoding='UTF8')
     lines = f.readlines()
-    for line in lines:
+    for line in lines[:5]:
         input = line.replace("\n","")
         politic_crawler(input).main()
 
@@ -37,6 +37,7 @@ class politic_crawler:
                                     ,db='test', charset='utf8')
             
             self.cursor = self.db.cursor()
+            
         except Exception as e:
             print("db is not connection")
         self.keyword = keyword
@@ -120,9 +121,12 @@ class politic_crawler:
             self.cursor.execute(create_sql)
         except Exception as e:
             print("테이블이 있습니다.")
-
+    
         try:
-            self.cursor.execute(input_sql,(result_keywords, self.keyword, url_list))
+            self.cursor.execute(input_sql,(result_keywords, search_keyword, url_list))
+            self.db.commit()
+            self.cursor.close()
+            print(result_keywords, self.keyword, url_list)
         except Exception as e:           
             print("수집 안됨", e)
 
@@ -184,10 +188,10 @@ class politic_crawler:
         ################## TF-IDF를 활용한 가중치 부여 ####################333
         lda_model = models.ldamodel.LdaModel(corpus=tf_ko, id2word=dictionary_ko,num_topics=10)
         ################### LDA MODELING 수행 ######################3
-        keywords = lda_model.print_topics(-1,20)
+        keywords = lda_model.print_topics(-1,50)
 
         keywords = []
-        for topic in lda_model.print_topics(-1,20):
+        for topic in lda_model.print_topics(-1,50):
             topic_list = topic[1].split('+')
             for i in range(len(topic_list)):
                 count = 0
@@ -197,6 +201,7 @@ class politic_crawler:
                         continue
                     elif words[j] not in keywords:
                         word = words[j].split('/')
+                       # print(word)
                         if word[0] not in keywords and word[1] == "Noun":
                             if len(word[0])==1:
                                 break
